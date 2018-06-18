@@ -34,9 +34,11 @@ config("icu_config") {
     "U_ENABLE_DYLOAD=0",
   ]
 
-  if (!is_component_build) {
-    defines += [ "U_STATIC_IMPLEMENTATION" ]
-  }
+  # we need to link with  ICU dynamically even in Release mode
+  # see https://gitlab.com/eyeo/adblockplus/chromium/issues/3
+  #if (!is_component_build) {
+  #  defines += [ "U_STATIC_IMPLEMENTATION" ]
+  #}
 
   include_dirs = [
     "source/common",
@@ -108,7 +110,7 @@ config("icu_code") {
   }
 }
 
-component("icui18n") {
+shared_library("icui18n") {
   # find  source/i18n -maxdepth 1  ! -type d  | egrep  '\.(c|cpp|h)$' |\
   # sort | sed 's/^\(.*\)$/    "\1",/'
   sources = [
@@ -570,6 +572,7 @@ component("icui18n") {
   defines = [ "U_I18N_IMPLEMENTATION" ]
   deps = [
     ":icuuc",
+    "//build/config:exe_and_shlib_deps"
   ]
 
   # ICU uses RTTI, replace the default "no rtti" config.
@@ -583,16 +586,28 @@ component("icui18n") {
   ]
 
   configs += [ ":icu_code" ]
-  public_configs = [ ":icu_config" ]
+
+  if (is_android) {
+    configs -= [ "//build/config/android:hide_all_but_jni_onload" ]
+  }
+
+  public_configs = [
+    ":icu_config",
+    "//build/config/gcc:rpath_for_built_shared_libraries"
+  ]
 
   if (is_fuchsia) {
     # Fuchsia puts its own libicui18n.so in /system/lib where we need to put our
     # .so when doing component builds, so we need to give this a different name.
     output_name = "icui18n_cr"
   }
+
+  if (is_android) {
+    output_extension = "cr.so"
+  }
 }
 
-component("icuuc") {
+shared_library("icuuc") {
   # find  source/common -maxdepth 1  ! -type d  | egrep  '\.(c|cpp|h)$' |\
   # sort | sed 's/^\(.*\)$/    "\1",/'
   sources = [
@@ -989,6 +1004,7 @@ component("icuuc") {
   defines = [ "U_COMMON_IMPLEMENTATION" ]
   deps = [
     ":icudata",
+    "//build/config:exe_and_shlib_deps"
   ]
 
   configs -= [
@@ -1001,7 +1017,14 @@ component("icuuc") {
   ]
   configs += [ ":icu_code" ]
 
-  public_configs = [ ":icu_config" ]
+  if (is_android) {
+   configs -= [ "//build/config/android:hide_all_but_jni_onload" ]
+  }
+
+  public_configs = [
+    ":icu_config",
+    "//build/config/gcc:rpath_for_built_shared_libraries"
+  ]
 
   if (is_win || icu_use_data_file) {
     sources += [ "source/stubdata/stubdata.cpp" ]
@@ -1012,6 +1035,10 @@ component("icuuc") {
     # Fuchsia puts its own libicuuc.so in /system/lib where we need to put our
     # .so when doing component builds, so we need to give this a different name.
     output_name = "icuuc_cr"
+  }
+
+  if (is_android) {
+    output_extension = "cr.so"
   }
 }
 
